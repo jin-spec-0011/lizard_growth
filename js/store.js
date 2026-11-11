@@ -76,3 +76,37 @@ export async function requestPersist() {
   }
   return false;
 }
+
+// ---- 센서 연동 세션 (refreshToken 만 저장, 비밀번호는 저장하지 않음) ----
+const CLOUD_KEY = 'cloud';
+
+export async function loadCloud() {
+  try {
+    const db = await openDb();
+    const v = await tx(db, 'readonly', (s) => s.get(CLOUD_KEY));
+    db.close();
+    return v || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function saveCloud(session) {
+  try {
+    const db = await openDb();
+    await tx(db, 'readwrite', (s) => s.put(session, CLOUD_KEY));
+    db.close();
+  } catch (e) {
+    /* 저장 불가 환경: 이번 세션 동안만 유지 */
+  }
+}
+
+export async function clearCloud() {
+  try {
+    const db = await openDb();
+    await tx(db, 'readwrite', (s) => s.delete(CLOUD_KEY));
+    db.close();
+  } catch (e) {
+    /* ignore */
+  }
+}

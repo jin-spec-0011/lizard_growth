@@ -37,6 +37,7 @@ button{cursor:pointer;border:0;background:none}
 .day b{display:grid;place-items:center;width:40px;height:40px;margin:3px auto 0;border-radius:50%;background:var(--card);color:var(--ink);font-size:14px;position:relative}
 .day.today b{background:var(--yel);color:#1F1B16;font-weight:800}
 .day.next b{outline:2px dashed var(--yel);outline-offset:-2px;background:var(--yelbg)}
+.day.today.next b{background:var(--yel);outline-color:#1F1B16}
 .day b i{position:absolute;bottom:4px;width:5px;height:5px;border-radius:50%;background:var(--grn-ink)}
 .day:disabled{opacity:.35;cursor:default}
 

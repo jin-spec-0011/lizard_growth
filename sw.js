@@ -1,8 +1,8 @@
-// Service Worker: 앱 셸 캐시 (오프라인 동작). 네트워크 요청은 같은 출처만 처리하며 외부로 나가는 요청은 없다.
-const CACHE = 'lizard-growth-v1';
+// Service Worker: 앱 셸 캐시 (오프라인 동작). 같은 출처 GET 만 캐시하며 Firebase 요청(다른 출처)은 가로채지 않는다.
+const CACHE = 'lizard-growth-v2';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/calc.js', 'js/env.js', 'js/store.js', 'js/export.js',
+  'js/app.js', 'js/calc.js', 'js/env.js', 'js/store.js', 'js/export.js', 'js/cloud.js', 'js/config.js',
   'assets/template.js', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/apple-touch-icon.png',
   'vendor/exceljs.min.js',
 ];

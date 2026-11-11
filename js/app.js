@@ -4,7 +4,9 @@ import {
   addDays, diffDays, dowOf, localTodayYmd, isValidYmd, ROWS, DOW, MEMO_MAX, WEIGHT_MAX, emptyState,
 } from './calc.js';
 import { judgeEnv, thresholdsFor, validateThresholds, PRESETS, THRESHOLD_KEYS } from './env.js';
-import { loadState, saveState, wipeAll, requestPersist, persistent } from './store.js';
+import { loadState, saveState, wipeAll, requestPersist, persistent, loadCloud, saveCloud, clearCloud } from './store.js';
+import { createCloud, sensorAgeMs, STALE_MS } from './cloud.js';
+import { FIREBASE } from './config.js';
 import { exportXlsx, exportFileName, importXlsx, XLSX_MIME } from './export.js';
 
 const $view = document.getElementById('view');
@@ -19,6 +21,50 @@ let tab = 'home';
 let journalLimit = PAGE;
 let journalOnlyFilled = false;
 let lastFocus = null;
+
+// ---------- 센서 연동 (Firebase, 읽기 전용) ----------
+let cloud = null;
+const live = { latest: null, at: 0, error: '', loading: false };
+
+async function refreshLive(quiet = true) {
+  if (!cloud || !cloud.session() || live.loading) return;
+  live.loading = true;
+  try {
+    live.latest = await cloud.fetchLatest();
+    live.at = Date.now();
+    live.error = '';
+  } catch (e) {
+    live.error = e && e.message ? e.message : '센서 데이터를 읽지 못했습니다.';
+    if (e && e.code === 'AUTH_EXPIRED') live.latest = null;
+    if (!quiet) toast(live.error);
+  } finally {
+    live.loading = false;
+  }
+  if ((tab === 'home' || tab === 'env' || tab === 'settings') && !$sheetRoot.firstChild && !(tab === 'settings' && document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))) render();
+}
+
+/** 현재 사용할 온습도: 신선한 센서값 > 수동 기록 > 오래된 센서값 */
+function sensorReading() {
+  const l = live.latest;
+  if (!l || (typeof l.temp !== 'number' && typeof l.hum !== 'number')) return null;
+  const age = sensorAgeMs(l, Date.now());
+  return { temp: l.temp ?? null, hum: l.hum ?? null, vib: l.vib, reed: l.reed, rssi: l.rssi, ageMs: age, stale: age === null || age > STALE_MS };
+}
+
+function ageText(ms) {
+  if (ms === null) return '시각 불명';
+  const m = Math.floor(ms / 60000);
+  return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.floor(m / 60) + '시간 전' : Math.floor(m / 1440) + '일 전';
+}
+
+function pickEnv(rows, t) {
+  const sr = sensorReading();
+  const man = latestReading(rows, t);
+  if (sr && !sr.stale) return { kind: 'sensor', temp: sr.temp, hum: sr.hum, label: '센서 · ' + ageText(sr.ageMs), stale: false, sr };
+  if (man) return { kind: 'manual', temp: man.temp, hum: man.hum, label: relDay(man.date, t) + ' 기록', date: man.date, stale: false, sr };
+  if (sr) return { kind: 'sensor', temp: sr.temp, hum: sr.hum, label: '센서 응답 없음 · ' + ageText(sr.ageMs) + ' 값', stale: true, sr };
+  return null;
+}
 
 // ---------- DOM 헬퍼 ----------
 function h(tag, props, ...kids) {
@@ -283,21 +329,21 @@ function latestReading(rows, t) {
 }
 
 function envCard(rows, t, th) {
-  const r = latestReading(rows, t);
-  const j = r ? judgeEnv(r.temp, r.hum, th) : null;
+  const src = pickEnv(rows, t);
+  const j = src ? judgeEnv(src.temp, src.hum, th) : null;
   if (!j) {
-    return h('button', { type: 'button', class: 'card env', onclick: () => openEntry(t) },
+    return h('button', { type: 'button', class: 'card env', onclick: () => (cloud && cloud.session() ? setTab('env') : openEntry(t)) },
       h('div', { class: 'face', 'aria-hidden': 'true', text: '🌡️' }),
       h('div', {}, h('div', { class: 'k', text: '현재 온습도' }), h('div', { class: 'st', text: '기록 없음' }), h('div', { class: 'k', text: '눌러서 온도·습도를 입력하세요' })));
   }
   return h('button', { type: 'button', class: 'card env', onclick: () => setTab('env'), 'aria-label': '현재 온습도 ' + j.overall.label },
-    h('div', { class: 'face', 'aria-hidden': 'true', text: j.overall.emoji }),
+    h('div', { class: 'face', 'aria-hidden': 'true', text: src.stale ? '📡' : j.overall.emoji }),
     h('div', {},
-      h('div', { class: 'k', text: '현재 온습도 · ' + relDay(r.date, t) + ' 기록' }),
+      h('div', { class: 'k', text: '현재 온습도 · ' + src.label }),
       h('div', { class: 'st', text: j.overall.label }),
       h('div', { class: 'vals' },
-        h('div', {}, '온도', h('b', { text: r.temp === null ? '—' : trim(r.temp, 1) + '°C' })),
-        h('div', {}, '습도', h('b', { text: r.hum === null ? '—' : trim(r.hum, 0) + '%' })))));
+        h('div', {}, '온도', h('b', { text: src.temp === null ? '—' : trim(src.temp, 1) + '°C' })),
+        h('div', {}, '습도', h('b', { text: src.hum === null ? '—' : trim(src.hum, 0) + '%' })))));
 }
 
 // ---------- 일지 ----------
@@ -347,27 +393,58 @@ function renderEnv() {
   const t = today();
   const th = thresholdsFor(state.settings);
   const rows = hasBirth() ? buildRows(state) : [];
-  const r = latestReading(rows, t);
-  const j = r ? judgeEnv(r.temp, r.hum, th) : null;
+  const src = pickEnv(rows, t);
+  const j = src ? judgeEnv(src.temp, src.hum, th) : null;
   const readings = rows.filter((x) => x.date <= t && (x.temp !== null || x.hum !== null)).slice(-14);
+  const connected = !!(cloud && cloud.session());
 
   const parts = [h('div', { class: 'hdr' }, h('h2', { text: '🌡️ 환경' }))];
   parts.push(h('div', { class: 'card env envbig' },
-    h('div', { class: 'bigem', 'aria-hidden': 'true', text: j ? j.overall.emoji : '🌡️' }),
+    h('div', { class: 'bigem', 'aria-hidden': 'true', text: j ? (src.stale ? '📡' : j.overall.emoji) : '🌡️' }),
     h('div', { class: 'st', text: j ? j.overall.label : '기록 없음' }),
     j ? h('div', { class: 'vals' },
-      h('div', {}, '온도 ' + (j.temp ? j.temp.emoji : ''), h('b', { text: r.temp === null ? '—' : trim(r.temp, 1) + '°C' })),
-      h('div', {}, '습도 ' + (j.hum ? j.hum.emoji : ''), h('b', { text: r.hum === null ? '—' : trim(r.hum, 0) + '%' }))) : null,
-    j ? h('div', { class: 'k', text: relDay(r.date, t) + ' 기록 (' + r.date + ')' + (j.overall.level > 0 ? ' · ' + [j.temp, j.hum].filter((x) => x && x.level > 0).map((x) => x.label).join(', ') : '') }) : null,
-    h('button', { type: 'button', class: 'btn main', text: '온습도 기록', onclick: () => openEntry(t) })));
+      h('div', {}, '온도 ' + (j.temp ? j.temp.emoji : ''), h('b', { text: src.temp === null ? '—' : trim(src.temp, 1) + '°C' })),
+      h('div', {}, '습도 ' + (j.hum ? j.hum.emoji : ''), h('b', { text: src.hum === null ? '—' : trim(src.hum, 0) + '%' }))) : null,
+    j ? h('div', { class: 'k', text: src.label + (j.overall.level > 0 ? ' · ' + [j.temp, j.hum].filter((x) => x && x.level > 0).map((x) => x.label).join(', ') : '') }) : null,
+    h('div', { class: 'btns' },
+      h('button', { type: 'button', class: 'btn main', text: '온습도 기록', onclick: () => openEntry(t) }),
+      connected ? h('button', { type: 'button', class: 'btn', text: '↻ 새로고침', onclick: () => refreshLive(false) }) : null)));
 
-  if (readings.length >= 2) parts.push(h('div', { class: 'card' }, h('div', { class: 'lbl', text: '최근 ' + readings.length + '건 추이' }), chart(readings),
+  const sr = sensorReading();
+  if (sr) {
+    parts.push(h('div', { class: 'card' },
+      h('div', { class: 'lbl', text: '📡 센서 상태' }),
+      h('div', { class: 'meta' },
+        h('div', { class: 'pill' }, '마지막 수신', h('b', { text: ageText(sr.ageMs) })),
+        sr.reed === undefined ? null : h('div', { class: 'pill' }, '리드 스위치', h('b', { text: sr.reed ? '열림' : '닫힘' })),
+        sr.vib === undefined ? null : h('div', { class: 'pill' }, '진동', h('b', { text: sr.vib + '회' })),
+        sr.rssi === undefined ? null : h('div', { class: 'pill' }, '신호', h('b', { text: sr.rssi + ' dBm' }))),
+      sr.stale ? h('p', { class: 'err', text: '센서 응답이 ' + Math.round(STALE_MS / 60000) + '분 넘게 없습니다. 전원·Wi-Fi를 확인하세요.' }) : null,
+      !sr.stale && hasBirth() ? h('div', { class: 'btns' }, h('button', { type: 'button', class: 'btn sm', text: '오늘 기록에 반영', onclick: () => applySensorToday(sr) })) : null));
+  }
+  if (connected && live.error) parts.push(h('div', { class: 'notice', role: 'alert', text: '⚠️ ' + live.error }));
+  if (!connected) parts.push(h('div', { class: 'notice' }, h('div', { text: '📡 센서를 연결하면 온습도가 자동으로 표시됩니다.' }), h('button', { type: 'button', text: '설정에서 센서 로그인', onclick: () => setTab('settings') })));
+
+  if (readings.length >= 2) parts.push(h('div', { class: 'card' }, h('div', { class: 'lbl', text: '최근 ' + readings.length + '건 추이 (기록 기준)' }), chart(readings),
     h('div', { class: 'key' }, h('i'), '온도', h('i', { class: 'd' }), '습도')));
 
   parts.push(h('div', { class: 'legend', role: 'table', 'aria-label': '이모지 판정 기준' },
     ...legendRows(th)));
-  parts.push(h('p', { class: 'hint', text: '기준: ' + (state.settings.species === 'custom' ? '직접 입력' : (PRESETS[state.settings.species] || PRESETS.crested).name) + ' · 설정에서 변경 · 센서 자동 연동은 다음 단계에서 추가됩니다.' }));
+  parts.push(h('p', { class: 'hint', text: '기준: ' + (state.settings.species === 'custom' ? '직접 입력' : (PRESETS[state.settings.species] || PRESETS.crested).name) + ' · 설정에서 변경' }));
   return h('div', {}, parts);
+}
+
+async function applySensorToday(sr) {
+  const t = today();
+  const berr = validateEntry(state, t, { temp: sr.temp, hum: sr.hum });
+  if (berr.length) { toast(berr[0]); return; }
+  await commit((s) => {
+    const e = { ...(s.entries[t] || {}) };
+    if (typeof sr.temp === 'number') e.temp = Math.round(sr.temp * 10) / 10;
+    if (typeof sr.hum === 'number') e.hum = Math.round(sr.hum);
+    s.entries[t] = normalizeEntry(e) || e;
+  });
+  toast('오늘 기록에 반영됨');
 }
 
 function legendRows(t) {
@@ -482,15 +559,62 @@ function renderSettings() {
         h('button', { type: 'button', class: 'btn', text: '⬆ 가져오기', onclick: () => fileIn.click() }),
         fileIn),
       h('p', { class: 'hint', text: '내보낸 파일은 원본 템플릿과 같은 구조(성장일지 시트)이며 온습도는 두 번째 시트에 저장됩니다. 같은 파일을 가져오면 기록이 복원됩니다.' })),
+    sensorSection(),
     h('section', { class: 'sect' },
       h('h3', { text: '개인정보' }),
-      h('p', { class: 'priv', text: '이 앱은 서버·계정·분석 도구가 없고 외부로 요청을 보내지 않습니다. 기록은 이 기기의 브라우저 저장소(IndexedDB)에만 저장됩니다.' }),
+      h('p', { class: 'priv', text: '체중·급여·메모 등 모든 기록은 이 기기의 브라우저 저장소(IndexedDB)에만 저장되며 서버로 전송되지 않습니다. 센서 연동을 켠 경우에만 Google(Firebase)로 로그인·센서값 조회 요청이 나가고, 센서값만 읽어옵니다. 분석·광고 도구는 없습니다.' }),
       h('div', { class: 'btns' }, h('button', { type: 'button', class: 'btn danger', text: '모든 데이터 삭제', onclick: onWipe }))));
+}
+
+function sensorSection() {
+  const sess = cloud && cloud.session();
+  if (sess) {
+    return h('section', { class: 'sect' },
+      h('h3', { text: '📡 센서 연동' }),
+      h('p', { class: 'hint', text: '연결됨: ' + sess.email + (live.at ? ' · 마지막 확인 ' + ageText(Date.now() - live.at) : '') }),
+      live.error ? h('p', { class: 'err', text: live.error }) : null,
+      h('div', { class: 'btns' },
+        h('button', { type: 'button', class: 'btn dark', text: '↻ 지금 확인', onclick: () => refreshLive(false) }),
+        h('button', { type: 'button', class: 'btn danger', text: '로그아웃', onclick: async () => { await cloud.signOut(); live.latest = null; live.error = ''; toast('센서 연동 해제'); render(); } })));
+  }
+  const fMail = h('input', { type: 'text', id: 'c-mail', inputmode: 'email', autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', maxlength: '120' });
+  const fPw = h('input', { type: 'password', id: 'c-pw', autocomplete: 'current-password', maxlength: '200' });
+  const err = h('div', { class: 'err', role: 'alert' });
+  const btn = h('button', { type: 'button', class: 'btn main', text: '로그인' });
+  const go = async () => {
+    err.textContent = '';
+    const email = fMail.value.trim();
+    const pw = fPw.value;
+    if (!email || !pw) { err.textContent = '이메일과 비밀번호를 입력하세요.'; return; }
+    btn.disabled = true;
+    try {
+      await cloud.signIn(email, pw);
+      fPw.value = '';
+      live.error = '';
+      toast('센서 연동 완료');
+      await refreshLive(false);
+      render();
+    } catch (e) {
+      err.textContent = e && e.message ? e.message : '로그인에 실패했습니다.';
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  btn.addEventListener('click', go);
+  fPw.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  return h('section', { class: 'sect' },
+    h('h3', { text: '📡 센서 연동 (읽기 전용)' }),
+    h('p', { class: 'hint', text: 'Firebase 의 owner(읽기 전용) 계정으로 로그인하세요. 비밀번호는 저장하지 않고, 로그인 유지용 토큰만 이 기기에 보관합니다.' }),
+    h('label', { for: 'c-mail', text: '이메일' }), fMail,
+    h('label', { for: 'c-pw', text: '비밀번호' }), fPw,
+    err, h('div', { class: 'btns' }, btn));
 }
 
 async function onWipe() {
   if (!confirm('이 기기의 모든 기록과 설정을 삭제합니다. 되돌릴 수 없습니다. 계속할까요?')) return;
   if (!confirm('정말 삭제할까요? (엑셀 백업을 먼저 권장합니다)')) return;
+  if (cloud) await cloud.signOut();
+  live.latest = null;
   await wipeAll();
   state = emptyState();
   toast('삭제됨');
@@ -584,10 +708,14 @@ function render() {
 
 async function init() {
   state = await loadState();
+  cloud = createCloud({ apiKey: FIREBASE.apiKey, databaseURL: FIREBASE.databaseURL, load: loadCloud, save: saveCloud, clear: clearCloud });
+  await cloud.restore();
   document.querySelectorAll('.nav button[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   document.getElementById('fab').addEventListener('click', () => openEntry(today()));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !$sheetRoot.firstChild) render(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!$sheetRoot.firstChild) render(); refreshLive(); } });
   render();
+  refreshLive();
+  setInterval(() => { if (!document.hidden && (tab === 'home' || tab === 'env')) refreshLive(); }, 30000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
