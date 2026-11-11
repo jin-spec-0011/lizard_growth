@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>도마뱀 일지 레이아웃 미리보기</title>
+<style>
+:root{
+  --bg:#EFEAE2; --card:#FFFFFF; --ink:#1F1B16; --mute:#7A7268;
+  --yel:#FBC24A; --yel2:#FFD97A; --yelbg:#FFF3D6;
+  --lav:#E6DFFB; --lav-ink:#4B3C8F; --pink:#F7D9D2; --pink-ink:#9B3E2E;
+  --grn:#DDF1DE; --grn-ink:#2C6B35; --red:#D9402B; --line:#EAE4DA;
+}
+*{box-sizing:border-box;margin:0}
+body{background:#DCD5CA;color:var(--ink);font:14px/1.4 -apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;padding:24px 16px 48px}
+h1{font-size:18px;text-align:center;margin-bottom:4px}
+.sub{text-align:center;color:#5d564c;font-size:12px;margin-bottom:24px}
+.row{display:flex;flex-wrap:wrap;gap:28px;justify-content:center}
+.col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.cap{font-weight:700;font-size:13px}
+.phone{width:360px;height:760px;background:var(--bg);border-radius:44px;border:8px solid #2a2622;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(0,0,0,.25)}
+.status{height:34px;display:flex;justify-content:space-between;align-items:center;padding:8px 26px 0;font-weight:700;font-size:12px}
+.scroll{flex:1;overflow:hidden;padding:6px 16px 0}
+.hdr{display:flex;justify-content:space-between;align-items:center;margin:6px 0 10px}
+.hdr h2{font-size:22px;letter-spacing:-.5px}
+.hdr small{color:var(--mute);display:block;font-size:12px}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--yel2);display:grid;place-items:center;font-size:22px}
+.week{display:flex;justify-content:space-between;margin-bottom:12px}
+.day{width:42px;text-align:center;font-size:11px;color:var(--mute)}
+.day b{display:grid;place-items:center;width:38px;height:38px;margin:3px auto 0;border-radius:50%;background:#fff;color:var(--ink);font-size:14px;position:relative}
+.day.today b{background:var(--yel)}
+.day b i{position:absolute;bottom:3px;width:5px;height:5px;border-radius:50%;background:var(--grn-ink)}
+.day.next b{outline:2px dashed var(--yel);background:var(--yelbg)}
+.card{border-radius:24px;padding:16px;margin-bottom:12px}
+.feed{background:linear-gradient(160deg,var(--yel2),var(--yel));position:relative;overflow:hidden}
+.feed .k{font-size:12px;font-weight:700;opacity:.75}
+.feed .big{font-size:30px;font-weight:800;letter-spacing:-1px;margin:2px 0}
+.feed .meta{display:flex;gap:8px;margin-top:8px}
+.pill{background:rgba(255,255,255,.65);border-radius:14px;padding:6px 10px;font-size:12px}
+.pill b{display:block;font-size:16px}
+.feed .em{position:absolute;right:14px;top:10px;font-size:46px}
+.cta{display:block;width:100%;margin-top:12px;border:0;border-radius:22px;padding:13px;background:var(--ink);color:#fff;font-weight:700;font-size:15px;text-align:left;position:relative}
+.cta::after{content:"→";position:absolute;right:16px}
+.env{background:var(--lav);display:flex;gap:12px;align-items:center}
+.env .face{font-size:54px;line-height:1}
+.env .k{font-size:12px;font-weight:700;color:var(--lav-ink)}
+.env .st{font-size:20px;font-weight:800;color:var(--lav-ink)}
+.env .vals{display:flex;gap:14px;margin-top:4px}
+.env .vals div{font-size:12px;color:#5b4fa0}.env .vals b{font-size:19px;color:var(--ink);display:block}
+.chips{display:flex;gap:8px}
+.chip{flex:1;background:#fff;border-radius:18px;padding:10px;font-size:11px;color:var(--mute)}
+.chip b{display:block;font-size:17px;color:var(--ink)}
+.nav{height:76px;background:#fff;border-radius:28px 28px 0 0;display:flex;justify-content:space-around;align-items:center;padding-bottom:10px}
+.nav div{text-align:center;font-size:10px;color:var(--mute)}.nav div span{display:block;font-size:20px}
+.nav .on{color:var(--ink);font-weight:700}
+.nav .fab{width:50px;height:50px;border-radius:50%;background:var(--yel);display:grid;place-items:center;font-size:26px;color:var(--ink);margin-top:-22px;box-shadow:0 6px 14px rgba(251,194,74,.6)}
+/* sheet */
+.dim{position:absolute;inset:0;background:rgba(31,27,22,.35)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:30px 30px 0 0;padding:14px 18px 22px}
+.grab{width:40px;height:4px;border-radius:2px;background:#d5cec3;margin:0 auto 12px}
+.sheet h3{font-size:18px;margin-bottom:10px}
+label{display:block;font-size:11px;color:var(--mute);font-weight:700;margin:10px 0 4px}
+.inp{border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;font-size:16px;background:#FBF9F5;display:flex;justify-content:space-between}
+.inp.f{border-color:var(--yel);background:var(--yelbg)}
+.seg{display:flex;background:#F1ECE3;border-radius:14px;padding:3px}
+.seg div{flex:1;text-align:center;padding:9px 0;border-radius:11px;font-weight:700;font-size:14px;color:var(--mute)}
+.seg .on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.auto{background:var(--grn);border-radius:16px;padding:10px 12px;margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.auto small{font-size:10px;color:var(--grn-ink);font-weight:700;display:block}.auto b{font-size:16px;color:var(--grn-ink)}
+.save{margin-top:14px;background:var(--yel);border-radius:20px;text-align:center;padding:14px;font-weight:800;font-size:16px}
+/* table */
+.tbl{background:#fff;border-radius:20px;overflow:hidden;font-size:11.5px}
+.tbl .h,.tbl .r{display:grid;grid-template-columns:62px 30px 40px 42px 48px 28px 1fr;gap:2px;padding:7px 8px;align-items:center}
+.tbl .h{background:#1E40AF;color:#fff;font-weight:700;font-size:10px}
+.tbl .r{border-bottom:1px solid var(--line)}
+.tbl .r.t{background:#FEF3C7}.neg{color:var(--red);font-weight:700}
+.tbl .r span:nth-child(n+2):nth-child(-n+6){text-align:center}
+.ok{color:var(--grn-ink);font-weight:800}.tbtn{display:flex;gap:8px;margin-bottom:10px}
+.btn{border-radius:16px;padding:9px 12px;font-weight:700;font-size:13px;background:#fff}
+.btn.p{background:var(--ink);color:#fff}
+/* env screen */
+.big-em{text-align:center;font-size:84px;line-height:1.1}
+.legend{background:#fff;border-radius:20px;padding:6px 12px;font-size:12px}
+.legend div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+.legend div:last-child{border:0}
+.note{max-width:1500px;margin:34px auto 0;background:#fff;border-radius:16px;padding:14px 18px;font-size:12.5px;color:#4a443b}
+@media(max-width:420px){.phone{width:100%;max-width:360px}}
+</style>
+</head>
+<body>
+<h1>🦎 도마뱀 성장·급여 일지 — 레이아웃 미리보기</h1>
+<p class="sub">※ 모든 수치는 샘플입니다. 기준일 2026-11-11(수) · 출생일 2026-07-20 · 급여율 15% · 급여주기 2일(가정)</p>
+
+<div class="row">
+
+<!-- 1 HOME -->
+<div class="col"><div class="cap">① 홈 — 급여 + 온습도 한눈에</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● 🔋</span></div>
+  <div class="scroll">
+    <div class="hdr"><div><h2>🦎 D+114일</h2><small>2026-11-11 (수) · 출생 2026-07-20</small></div><div class="avatar">🦎</div></div>
+    <div class="week">
+      <div class="day">월<b>9<i></i></b></div><div class="day">화<b>10</b></div>
+      <div class="day today">수<b>11</b></div><div class="day">목<b>12</b></div>
+      <div class="day next">금<b>13</b></div><div class="day">토<b>14</b></div><div class="day">일<b>15</b></div>
+    </div>
+    <div class="card feed">
+      <div class="em">🍽️</div>
+      <div class="k">다음 급여일</div>
+      <div class="big">오늘 · 11-11(수)</div>
+      <div class="meta">
+        <div class="pill">권장 급여량<b>2.13 g</b></div>
+        <div class="pill">직전 급여<b>11-09 (2일 전)</b></div>
+      </div>
+      <div class="cta">급여 기록하기</div>
+    </div>
+    <div class="card env">
+      <div class="face">😊</div>
+      <div style="flex:1"><div class="k">현재 온습도</div><div class="st">쾌적해요</div>
+        <div class="vals"><div>온도<b>24.6°C</b></div><div>습도<b>68%</b></div></div></div>
+    </div>
+    <div class="chips">
+      <div class="chip">현재 체중<b>14.2 g</b></div>
+      <div class="chip">누적 증가<b>+11.6 g</b></div>
+      <div class="chip">일증체<b>+0.102</b></div>
+    </div>
+  </div>
+  <div class="nav"><div class="on"><span>🏠</span>홈</div><div><span>📒</span>일지</div><div class="fab">+</div><div><span>🌡️</span>환경</div><div><span>⚙️</span>설정</div></div>
+</div></div>
+
+<!-- 2 INPUT -->
+<div class="col"><div class="cap">② 입력 — 저장 전 실시간 자동 계산</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● 🔋</span></div>
+  <div class="scroll" style="filter:blur(1px)">
+    <div class="hdr"><div><h2>🦎 D+114일</h2></div></div>
+    <div class="card feed" style="height:170px"></div><div class="card env" style="height:110px"></div>
+  </div>
+  <div class="dim"></div>
+  <div class="sheet">
+    <div class="grab"></div><h3>오늘 기록</h3>
+    <label>날짜</label><div class="inp"><span>2026-11-11 (수)</span><span>📅</span></div>
+    <label>체중 (g)</label><div class="inp f"><span>14.2</span><span>g</span></div>
+    <label>급여 여부</label><div class="seg"><div class="on">O</div><div>X</div><div>예정</div></div>
+    <label>메모</label><div class="inp"><span style="color:#aaa">특이사항</span></div>
+    <div class="auto"><div><small>일령</small><b>114일</b></div><div><small>변화량(직전 대비)</small><b>+0.4g</b></div><div><small>권장 급여량</small><b>2.13g</b></div></div>
+    <div class="save">저장</div>
+  </div>
+</div></div>
+
+<!-- 3 JOURNAL -->
+<div class="col"><div class="cap">③ 일지 — 엑셀 열 구조와 1:1</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● 🔋</span></div>
+  <div class="scroll">
+    <div class="hdr"><h2>📒 일지</h2></div>
+    <div class="tbtn"><div class="btn p">⬇ 엑셀 내보내기</div><div class="btn">⬆ 가져오기</div></div>
+    <div class="tbl">
+      <div class="h"><span>날짜</span><span>일령</span><span>체중</span><span>변화</span><span>권장g</span><span>급여</span><span>메모</span></div>
+      <div class="r t"><span>11-11(수)</span><span>114</span><span>14.2</span><span>+0.4</span><span>2.13</span><span class="ok">O</span><span>식욕 좋음</span></div>
+      <div class="r"><span>11-10(화)</span><span>113</span><span>—</span><span></span><span>2.07</span><span>X</span><span></span></div>
+      <div class="r"><span>11-09(월)</span><span>112</span><span>13.8</span><span>+0.3</span><span>2.07</span><span class="ok">O</span><span>탈피 전</span></div>
+      <div class="r"><span>11-08(일)</span><span>111</span><span>13.5</span><span class="neg">-0.2</span><span>2.06</span><span>X</span><span></span></div>
+      <div class="r"><span>11-07(토)</span><span>110</span><span>13.7</span><span>+0.5</span><span>2.10</span><span class="ok">O</span><span></span></div>
+      <div class="r"><span>11-06(금)</span><span>109</span><span>—</span><span></span><span>2.04</span><span>X</span><span></span></div>
+      <div class="r"><span>11-05(목)</span><span>108</span><span>13.2</span><span>+0.2</span><span>1.98</span><span class="ok">O</span><span></span></div>
+    </div>
+    <p style="font-size:11px;color:var(--mute);margin-top:8px">노란 행 = 오늘 · 빨간 변화량 = 감소 (엑셀 조건부서식과 동일)</p>
+  </div>
+  <div class="nav"><div><span>🏠</span>홈</div><div class="on"><span>📒</span>일지</div><div class="fab">+</div><div><span>🌡️</span>환경</div><div><span>⚙️</span>설정</div></div>
+</div></div>
+
+<!-- 4 ENV -->
+<div class="col"><div class="cap">④ 환경 — 온습도 이모지 판정</div>
+<div class="phone">
+  <div class="status"><span>9:41</span><span>●●● 🔋</span></div>
+  <div class="scroll">
+    <div class="hdr"><h2>🌡️ 환경</h2></div>
+    <div class="card env" style="flex-direction:column;text-align:center">
+      <div class="big-em">😊</div><div class="st">쾌적해요</div>
+      <div class="vals" style="justify-content:center"><div>온도 😊<b>24.6°C</b></div><div>습도 😊<b>68%</b></div></div>
+    </div>
+    <div class="card" style="background:#fff;padding:12px">
+      <div style="font-size:11px;font-weight:700;color:var(--mute)">최근 24시간 (샘플)</div>
+      <svg viewBox="0 0 300 80" width="100%" height="80" aria-label="24시간 온습도 추이 샘플">
+        <polyline fill="none" stroke="#E0662C" stroke-width="2.5" points="0,40 30,38 60,34 90,30 120,28 150,30 180,34 210,38 240,42 270,38 300,36"/>
+        <polyline fill="none" stroke="#6D5BD0" stroke-width="2.5" points="0,22 30,20 60,26 90,34 120,40 150,36 180,30 210,24 240,20 270,22 300,24"/>
+      </svg>
+      <div style="font-size:11px"><span style="color:#E0662C">● 온도</span> &nbsp; <span style="color:#6D5BD0">● 습도</span></div>
+    </div>
+    <div class="legend">
+      <div><span>🥶 / 🥵</span><span>온도 &lt;20 / &gt;28°C</span></div>
+      <div><span>😐 / 😓</span><span>20~22 / 26~28°C</span></div>
+      <div><span>😊 온도</span><span>22~26°C</span></div>
+      <div><span>🏜️ / 😕</span><span>습도 &lt;40 / 40~50%</span></div>
+      <div><span>😊 습도</span><span>50~80%</span></div>
+    </div>
+  </div>
+  <div class="nav"><div><span>🏠</span>홈</div><div><span>📒</span>일지</div><div class="fab">+</div><div class="on"><span>🌡️</span>환경</div><div><span>⚙️</span>설정</div></div>
+</div></div>
+
+</div>
+<div class="note"><b>참고 이미지에서 가져온 요소:</b> 크림 배경 · 큰 라운드 카드 · 노란 주색(1차 액션) · 라벤더/핑크 보조색 · 주간 날짜 스트립 · 하단 5탭 + 중앙 ＋ 버튼 · “한 화면 한 질문 한 액션”. 온습도 임계값은 설정 탭에서 종(種)별로 변경 가능.</div>
+</body>
+</html>
