@@ -1,0 +1,4 @@
+exceljs 4.4.0
+source: npm pack exceljs@4.4.0 (dist/exceljs.min.js)
+sha256: 7e49da68588e250dbb8bba190d2caa8ab3787cc0284bda1d8b2f805c4df742c9
+license: MIT (EXCELJS-LICENSE.txt)

@@ -1,0 +1,10 @@
+# 실제 일지/백업 파일은 절대 커밋하지 않는다 (개인정보)
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/*.xlsx
+node_modules/
+.DS_Store
+*.log
+# Phase 3 (Arduino) 대비
+secrets.h
