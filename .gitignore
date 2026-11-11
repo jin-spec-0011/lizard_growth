@@ -14,3 +14,5 @@ secrets.h
 
 # PCB 설계 산출물(부품표·넷리스트)은 커밋 대상
 !docs/pcb/*.csv
+__pycache__/
+*.pyc
