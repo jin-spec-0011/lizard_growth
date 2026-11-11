@@ -1,0 +1,47 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "sensor": {
+      "latest": {
+        ".read": "auth != null && auth.uid === '__OWNER_UID__'",
+        ".write": "auth != null && auth.uid === '__DEVICE_UID__' && newData.exists() && (!data.exists() || now - data.child('ts').val() >= 5000)",
+        ".validate": "newData.hasChildren(['ts', 'temp', 'hum'])",
+        "ts":   { ".validate": "newData.val() == now" },
+        "temp": { ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125" },
+        "hum":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+        "vib":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000" },
+        "reed": { ".validate": "newData.isBoolean()" },
+        "rssi": { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
+        "$other": { ".validate": false }
+      },
+
+      "history": {
+        ".read": "auth != null && auth.uid === '__OWNER_UID__'",
+        "$id": {
+          ".write": "auth != null && auth.uid === '__DEVICE_UID__' && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['ts', 'temp', 'hum'])",
+          "ts":   { ".validate": "newData.val() == now" },
+          "temp": { ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125" },
+          "hum":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "vib":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000" },
+          "reed": { ".validate": "newData.isBoolean()" },
+          "rssi": { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
+          "$other": { ".validate": false }
+        }
+      }
+    },
+
+    "events": {
+      ".read": "auth != null && auth.uid === '__OWNER_UID__'",
+      "$id": {
+        ".write": "auth != null && auth.uid === '__DEVICE_UID__' && !data.exists() && newData.exists()",
+        ".validate": "newData.hasChildren(['ts', 'type'])",
+        "ts":   { ".validate": "newData.val() == now" },
+        "type": { ".validate": "newData.isString() && newData.val().matches(/^(btn1|btn2|btn3|vibration|reed_open|reed_close|boot)$/)" },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}

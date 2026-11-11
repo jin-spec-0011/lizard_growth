@@ -1,0 +1,17 @@
+{
+  "name": "도마뱀 성장·급여 일지",
+  "short_name": "도마뱀일지",
+  "description": "체중·급여·온습도를 기록하고 자동 계산하는 개인용 일지 (데이터는 이 기기에만 저장)",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EFEAE2",
+  "theme_color": "#FBC24A",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

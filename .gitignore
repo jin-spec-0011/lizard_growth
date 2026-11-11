@@ -1,0 +1,13 @@
+# 실제 일지/백업 파일은 절대 커밋하지 않는다 (개인정보)
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/*.xlsx
+node_modules/
+.DS_Store
+*.log
+# Phase 3 (Arduino) 대비
+secrets.h
+
+# UID 가 치환된 로컬 규칙 파일 (커밋 금지)
+*.local.json
