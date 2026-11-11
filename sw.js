@@ -1,5 +1,5 @@
 // Service Worker: 앱 셸 캐시 (오프라인 동작). 같은 출처 GET 만 캐시하며 Firebase 요청(다른 출처)은 가로채지 않는다.
-const CACHE = 'lizard-growth-v2';
+const CACHE = 'lizard-growth-v3';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/calc.js', 'js/env.js', 'js/store.js', 'js/export.js', 'js/cloud.js', 'js/config.js',
