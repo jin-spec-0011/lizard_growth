@@ -8,3 +8,6 @@ node_modules/
 *.log
 # Phase 3 (Arduino) 대비
 secrets.h
+
+# UID 가 치환된 로컬 규칙 파일 (커밋 금지)
+*.local.json
