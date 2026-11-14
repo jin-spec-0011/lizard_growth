@@ -133,18 +133,26 @@ export function createCloud({ apiKey, databaseURL, fetchFn, now = Date.now, load
     return refresh();
   }
 
-  async function readPath(path) {
+  // RTDB REST 요청 (GET/PUT/PATCH). path 는 '/' 로 시작, '.json' 은 자동으로 붙인다.
+  async function request(path, method = 'GET', body) {
+    if (!/^\/[A-Za-z0-9_\-/]*$/.test(path)) throw new CloudError('PATH', '잘못된 경로');
     const token = await getIdToken();
+    const init = { method, cache: 'no-store' };
+    if (body !== undefined) {
+      init.headers = { 'Content-Type': 'application/json' };
+      init.body = JSON.stringify(body);
+    }
     let res;
     try {
-      res = await doFetch(databaseURL + path + '.json?auth=' + encodeURIComponent(token), { method: 'GET', cache: 'no-store' });
+      res = await doFetch(databaseURL + path + '.json?auth=' + encodeURIComponent(token), init);
     } catch (e) {
       throw new CloudError('NETWORK', '네트워크에 연결할 수 없습니다.');
     }
-    if (res.status === 401 || res.status === 403) throw new CloudError('DENIED', '권한이 없습니다. owner 계정으로 로그인했는지 확인하세요.');
+    if (res.status === 401 || res.status === 403) throw new CloudError('DENIED', '권한이 없습니다. owner 계정으로 로그인했는지, 데이터베이스 규칙이 게시됐는지 확인하세요.');
     if (!res.ok) throw new CloudError('HTTP', '서버 오류 (' + res.status + ')');
     return json(res);
   }
+  const readPath = (path) => request(path, 'GET');
 
   /** @returns {Promise<null|{ts:number,temp:number,hum:number,vib?:number,reed?:boolean,rssi?:number}>} */
   async function fetchLatest() {
@@ -161,5 +169,5 @@ export function createCloud({ apiKey, databaseURL, fetchFn, now = Date.now, load
     return typeof out.ts === 'number' ? out : null;
   }
 
-  return { restore, signIn, signOut, getIdToken, fetchLatest, session: () => session };
+  return { restore, signIn, signOut, getIdToken, fetchLatest, request, session: () => session, uid: () => (session ? session.uid : '') };
 }

@@ -4,7 +4,8 @@ import {
   addDays, diffDays, dowOf, localTodayYmd, isValidYmd, ROWS, DOW, MEMO_MAX, WEIGHT_MAX, emptyState,
 } from './calc.js';
 import { judgeEnv, thresholdsFor, validateThresholds, PRESETS, THRESHOLD_KEYS } from './env.js';
-import { loadState, saveState, wipeAll, requestPersist, persistent, loadCloud, saveCloud, clearCloud } from './store.js';
+import { loadState, saveState, wipeAll, requestPersist, persistent, loadCloud, saveCloud, clearCloud, loadSyncMeta, saveSyncMeta } from './store.js';
+import { emptyMeta, sanitizeMeta, markDirty, syncOnce } from './sync.js';
 import { createCloud, sensorAgeMs, STALE_MS } from './cloud.js';
 import { FIREBASE } from './config.js';
 import { exportXlsx, exportFileName, importXlsx, XLSX_MIME } from './export.js';
@@ -24,6 +25,58 @@ let lastFocus = null;
 
 // ---------- 센서 연동 (Firebase, 읽기 전용) ----------
 let cloud = null;
+let syncMeta = emptyMeta('');
+const sync = { running: false, again: false, error: '', timer: 0 };
+
+function pendingCount() {
+  return Object.keys(syncMeta.dirty).length + (syncMeta.settingsDirty ? 1 : 0);
+}
+
+function isTyping() {
+  const a = document.activeElement;
+  return !!(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName));
+}
+
+function scheduleSync(delay = 1500) {
+  if (!cloud || !cloud.session()) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(() => runSync(true), delay);
+}
+
+async function runSync(quiet = true) {
+  if (!cloud || !cloud.session()) return;
+  if (sync.running) { sync.again = true; return; }
+  sync.running = true;
+  let changed = false;
+  try {
+    const r = await syncOnce({
+      cloud,
+      getState: () => state,
+      setState: async (x) => { state = x; await saveState(state); },
+      getMeta: () => syncMeta,
+      setMeta: async (m) => { syncMeta = m; await saveSyncMeta(m); },
+    });
+    changed = r.changed;
+    sync.error = '';
+    if (!quiet) toast(changed ? '동기화 완료 · 다른 기기 변경 반영' : '동기화 완료');
+  } catch (e) {
+    sync.error = e && e.message ? e.message : '동기화에 실패했습니다.';
+    if (e && e.code === 'AUTH_EXPIRED') live.latest = null;
+    if (!quiet) toast('동기화 실패: ' + sync.error);
+  } finally {
+    sync.running = false;
+  }
+  if (!$sheetRoot.firstChild && !isTyping()) render();
+  if (sync.again) { sync.again = false; scheduleSync(500); }
+}
+
+function syncLabel() {
+  if (!cloud || !cloud.session()) return '';
+  const n = pendingCount();
+  if (sync.error) return n ? '☁️ 연결 안 됨 · 올릴 변경 ' + n + '건' : '☁️ 동기화 오류';
+  if (n) return '☁️ 올릴 변경 ' + n + '건';
+  return syncMeta.lastSync ? '☁️ 동기화 ' + ageText(Date.now() - syncMeta.lastSync) : '☁️ 동기화 대기';
+}
 const live = { latest: null, at: 0, error: '', loading: false };
 
 async function refreshLive(quiet = true) {
@@ -111,10 +164,15 @@ function relDay(ymd, t) {
 }
 
 // ---------- 상태 ----------
-async function commit(mutator) {
+async function commit(mutator, changes) {
   mutator(state);
   const ok = await saveState(state);
   if (!ok) toast('⚠️ 이 브라우저에서는 저장되지 않습니다. 엑셀로 백업하세요.');
+  if (changes) {
+    markDirty(syncMeta, changes);
+    await saveSyncMeta(syncMeta);
+    scheduleSync();
+  }
   render();
 }
 
@@ -205,7 +263,7 @@ function openEntry(dateIn, preset = {}) {
     if (errs.length) { err.textContent = errs[0]; return; }
     const n = normalizeEntry(d);
     const p = previewRow(state, date, d);
-    await commit((s) => { if (n) s.entries[date] = n; else delete s.entries[date]; });
+    await commit((s) => { if (n) s.entries[date] = n; else delete s.entries[date]; }, { dates: [date] });
     closeSheet();
     toast(p && p.rec !== null ? '저장됨 · 권장 급여량 ' + p.rec.toFixed(2) + ' g' : '저장됨');
     requestPersist();
@@ -213,7 +271,7 @@ function openEntry(dateIn, preset = {}) {
 
   async function onDelete() {
     if (!confirm(date + ' 기록을 삭제할까요?')) return;
-    await commit((s) => { delete s.entries[date]; });
+    await commit((s) => { delete s.entries[date]; }, { dates: [date] });
     closeSheet();
     toast('삭제됨');
   }
@@ -265,7 +323,7 @@ function renderHome() {
   const parts = [];
 
   parts.push(h('div', { class: 'hdr' },
-    h('div', {}, h('h1', { text: '🦎 ' + (sum.age >= 0 ? 'D+' + sum.age + '일' : 'D' + sum.age + '일') }), h('small', { text: t + ' (' + DOW[dowOf(t)] + ') · 출생 ' + state.settings.birth })),
+    h('div', {}, h('h1', { text: '🦎 ' + (sum.age >= 0 ? 'D+' + sum.age + '일' : 'D' + sum.age + '일') }), h('small', { text: t + ' (' + DOW[dowOf(t)] + ') · 출생 ' + state.settings.birth }), syncLabel() ? h('small', { class: 'sync' + (sync.error ? ' bad' : ''), text: syncLabel() }) : null),
     h('button', { type: 'button', class: 'avatar', 'aria-label': '설정 열기', text: '🦎', onclick: () => setTab('settings') })));
 
   if (!persistent) parts.push(h('div', { class: 'notice', role: 'alert', text: '⚠️ 이 브라우저는 저장소를 허용하지 않아 앱을 닫으면 기록이 사라집니다. 엑셀로 백업하세요.' }));
@@ -443,7 +501,7 @@ async function applySensorToday(sr) {
     if (typeof sr.temp === 'number') e.temp = Math.round(sr.temp * 10) / 10;
     if (typeof sr.hum === 'number') e.hum = Math.round(sr.hum);
     s.entries[t] = normalizeEntry(e) || e;
-  });
+  }, { dates: [t] });
   toast('오늘 기록에 반영됨');
 }
 
@@ -532,7 +590,7 @@ function renderSettings() {
       st.settings.intervalDays = iv;
       st.settings.species = fSp.value;
       st.settings.thresholds = thresholds;
-    });
+    }, { settings: true });
     toast('설정 저장됨');
     requestPersist();
   }
@@ -562,20 +620,24 @@ function renderSettings() {
     sensorSection(),
     h('section', { class: 'sect' },
       h('h3', { text: '개인정보' }),
-      h('p', { class: 'priv', text: '체중·급여·메모 등 모든 기록은 이 기기의 브라우저 저장소(IndexedDB)에만 저장되며 서버로 전송되지 않습니다. 센서 연동을 켠 경우에만 Google(Firebase)로 로그인·센서값 조회 요청이 나가고, 센서값만 읽어옵니다. 분석·광고 도구는 없습니다.' }),
-      h('div', { class: 'btns' }, h('button', { type: 'button', class: 'btn danger', text: '모든 데이터 삭제', onclick: onWipe }))));
+      h('p', { class: 'priv', text: '기록은 먼저 이 기기(IndexedDB)에 저장됩니다. 클라우드 동기화에 로그인한 경우에만 기록·설정이 Google Firebase 의 본인 전용 공간(/users/본인 UID)에 저장되어 같은 계정으로 로그인한 다른 기기에서 조회됩니다. 다른 사람은 서버 규칙상 읽을 수 없습니다. 분석·광고 도구는 없습니다.' }),
+      h('div', { class: 'btns' }, h('button', { type: 'button', class: 'btn danger', text: '이 기기 데이터 삭제', onclick: onWipe }))));
 }
 
 function sensorSection() {
   const sess = cloud && cloud.session();
   if (sess) {
+    const n = pendingCount();
     return h('section', { class: 'sect' },
-      h('h3', { text: '📡 센서 연동' }),
-      h('p', { class: 'hint', text: '연결됨: ' + sess.email + (live.at ? ' · 마지막 확인 ' + ageText(Date.now() - live.at) : '') }),
-      live.error ? h('p', { class: 'err', text: live.error }) : null,
+      h('h3', { text: '☁️ 클라우드 동기화 · 📡 센서' }),
+      h('p', { class: 'hint', text: '연결됨: ' + sess.email }),
+      h('p', { class: 'hint', text: '마지막 동기화: ' + (syncMeta.lastSync ? ageText(Date.now() - syncMeta.lastSync) : '아직 없음') + (n ? ' · 올릴 변경 ' + n + '건' : '') + (live.at ? ' · 센서 확인 ' + ageText(Date.now() - live.at) : '') }),
+      sync.error ? h('p', { class: 'err', text: '동기화: ' + sync.error }) : null,
+      live.error ? h('p', { class: 'err', text: '센서: ' + live.error }) : null,
       h('div', { class: 'btns' },
-        h('button', { type: 'button', class: 'btn dark', text: '↻ 지금 확인', onclick: () => refreshLive(false) }),
-        h('button', { type: 'button', class: 'btn danger', text: '로그아웃', onclick: async () => { await cloud.signOut(); live.latest = null; live.error = ''; toast('센서 연동 해제'); render(); } })));
+        h('button', { type: 'button', class: 'btn dark', text: '↻ 지금 동기화', onclick: async () => { await runSync(false); refreshLive(true); } }),
+        h('button', { type: 'button', class: 'btn danger', text: '로그아웃', onclick: onSignOut })),
+      h('p', { class: 'hint', text: '같은 날짜를 두 기기에서 고치면 나중에 저장한 값이 남습니다. 로그아웃해도 이 기기의 기록은 그대로 남습니다.' }));
   }
   const fMail = h('input', { type: 'text', id: 'c-mail', inputmode: 'email', autocomplete: 'username', autocapitalize: 'none', autocorrect: 'off', spellcheck: 'false', maxlength: '120' });
   const fPw = h('input', { type: 'password', id: 'c-pw', autocomplete: 'current-password', maxlength: '200' });
@@ -590,9 +652,17 @@ function sensorSection() {
     try {
       await cloud.signIn(email, pw);
       fPw.value = '';
+      const uid = cloud.uid();
+      syncMeta = syncMeta.uid === '' ? { ...syncMeta, uid } : sanitizeMeta(syncMeta, uid);
+      await saveSyncMeta(syncMeta);
+      const local = Object.keys(state.entries).length;
+      if (!syncMeta.lastSync && local > 0) {
+        toast('이 기기 기록 ' + local + '일을 클라우드와 합칩니다');
+      }
       live.error = '';
-      toast('센서 연동 완료');
-      await refreshLive(false);
+      sync.error = '';
+      await runSync(false);
+      await refreshLive(true);
       render();
     } catch (e) {
       err.textContent = e && e.message ? e.message : '로그인에 실패했습니다.';
@@ -603,20 +673,32 @@ function sensorSection() {
   btn.addEventListener('click', go);
   fPw.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   return h('section', { class: 'sect' },
-    h('h3', { text: '📡 센서 연동 (읽기 전용)' }),
-    h('p', { class: 'hint', text: 'Firebase 의 owner(읽기 전용) 계정으로 로그인하세요. 비밀번호는 저장하지 않고, 로그인 유지용 토큰만 이 기기에 보관합니다.' }),
+    h('h3', { text: '☁️ 클라우드 동기화 · 📡 센서' }),
+    h('p', { class: 'hint', text: 'Firebase owner 계정으로 로그인하면 기록이 클라우드에 저장되고, 같은 계정으로 로그인한 다른 기기(iPhone, PC 등)에서도 조회·수정됩니다. 비밀번호는 저장하지 않고 로그인 유지용 토큰만 이 기기에 보관합니다.' }),
+    h('p', { class: 'hint', text: '처음 연결할 때 이 기기와 클라우드에 같은 날짜 기록이 둘 다 있으면 클라우드 값이 우선합니다. 필요하면 먼저 엑셀로 백업하세요.' }),
     h('label', { for: 'c-mail', text: '이메일' }), fMail,
     h('label', { for: 'c-pw', text: '비밀번호' }), fPw,
     err, h('div', { class: 'btns' }, btn));
 }
 
+async function onSignOut() {
+  const n = pendingCount();
+  if (n && !confirm('아직 클라우드에 올리지 못한 변경이 ' + n + '건 있습니다. 로그아웃해도 이 기기에는 남고, 다시 로그인하면 올라갑니다. 계속할까요?')) return;
+  await cloud.signOut();
+  live.latest = null; live.error = ''; sync.error = '';
+  toast('로그아웃됨 (이 기기의 기록은 유지)');
+  render();
+}
+
 async function onWipe() {
-  if (!confirm('이 기기의 모든 기록과 설정을 삭제합니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+  if (!confirm('이 기기의 기록·설정·로그인 정보를 삭제합니다(클라우드에 올라간 기록은 유지). 계속할까요?')) return;
   if (!confirm('정말 삭제할까요? (엑셀 백업을 먼저 권장합니다)')) return;
   if (cloud) await cloud.signOut();
   live.latest = null;
   await wipeAll();
   state = emptyState();
+  syncMeta = emptyMeta('');
+  sync.error = '';
   toast('삭제됨');
   render();
 }
@@ -682,7 +764,8 @@ async function doImport(input) {
     const res = await importXlsx(ExcelJS, await file.arrayBuffer(), state);
     const cur = Object.keys(state.entries).length;
     if (!confirm('파일에서 ' + res.count + '일치 기록을 읽었습니다.\n현재 기록 ' + cur + '일치와 출생일/급여율이 파일 내용으로 교체됩니다. 계속할까요?')) return;
-    await commit((s) => { s.settings = res.state.settings; s.entries = res.state.entries; });
+    const touched = [...new Set([...Object.keys(state.entries), ...Object.keys(res.state.entries)])];
+    await commit((s) => { s.settings = res.state.settings; s.entries = res.state.entries; }, { dates: touched, settings: true });
     toast('가져오기 완료 · ' + res.count + '일');
   } catch (e) {
     toast('가져오기 실패: ' + (e && e.message ? e.message : '알 수 없는 오류'));
@@ -710,12 +793,21 @@ async function init() {
   state = await loadState();
   cloud = createCloud({ apiKey: FIREBASE.apiKey, databaseURL: FIREBASE.databaseURL, load: loadCloud, save: saveCloud, clear: clearCloud });
   await cloud.restore();
+  const rawMeta = await loadSyncMeta();
+  // 로그아웃 상태라도 이전 계정의 '올릴 변경' 목록은 유지(같은 계정으로 다시 로그인하면 올라감)
+  syncMeta = sanitizeMeta(rawMeta, cloud.uid() || (rawMeta && typeof rawMeta.uid === 'string' ? rawMeta.uid : ''));
   document.querySelectorAll('.nav button[data-tab]').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   document.getElementById('fab').addEventListener('click', () => openEntry(today()));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!$sheetRoot.firstChild) render(); refreshLive(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (!$sheetRoot.firstChild && !isTyping()) render(); refreshLive(); scheduleSync(300); } });
+  window.addEventListener('online', () => scheduleSync(300));
   render();
   refreshLive();
-  setInterval(() => { if (!document.hidden && (tab === 'home' || tab === 'env')) refreshLive(); }, 30000);
+  scheduleSync(300);
+  setInterval(() => {
+    if (document.hidden) return;
+    if (tab === 'home' || tab === 'env') refreshLive();
+    scheduleSync(0);
+  }, 30000);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 

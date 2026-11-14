@@ -2,45 +2,140 @@
   "rules": {
     ".read": false,
     ".write": false,
-
     "sensor": {
       "latest": {
         ".read": "auth != null && auth.uid === '__OWNER_UID__'",
         ".write": "auth != null && auth.uid === '__DEVICE_UID__' && newData.exists() && (!data.exists() || now - data.child('ts').val() >= 5000)",
         ".validate": "newData.hasChildren(['ts', 'temp', 'hum'])",
-        "ts":   { ".validate": "newData.val() == now" },
-        "temp": { ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125" },
-        "hum":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-        "vib":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000" },
-        "reed": { ".validate": "newData.isBoolean()" },
-        "rssi": { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
-        "$other": { ".validate": false }
+        "ts": {
+          ".validate": "newData.val() == now"
+        },
+        "temp": {
+          ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125"
+        },
+        "hum": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+        },
+        "vib": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+        },
+        "reed": {
+          ".validate": "newData.isBoolean()"
+        },
+        "rssi": {
+          ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0"
+        },
+        "$other": {
+          ".validate": false
+        }
       },
-
       "history": {
         ".read": "auth != null && auth.uid === '__OWNER_UID__'",
         "$id": {
           ".write": "auth != null && auth.uid === '__DEVICE_UID__' && !data.exists() && newData.exists()",
           ".validate": "newData.hasChildren(['ts', 'temp', 'hum'])",
-          "ts":   { ".validate": "newData.val() == now" },
-          "temp": { ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125" },
-          "hum":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-          "vib":  { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000" },
-          "reed": { ".validate": "newData.isBoolean()" },
-          "rssi": { ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0" },
-          "$other": { ".validate": false }
+          "ts": {
+            ".validate": "newData.val() == now"
+          },
+          "temp": {
+            ".validate": "newData.isNumber() && newData.val() >= -40 && newData.val() <= 125"
+          },
+          "hum": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "vib": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100000"
+          },
+          "reed": {
+            ".validate": "newData.isBoolean()"
+          },
+          "rssi": {
+            ".validate": "newData.isNumber() && newData.val() >= -120 && newData.val() <= 0"
+          },
+          "$other": {
+            ".validate": false
+          }
         }
       }
     },
-
     "events": {
       ".read": "auth != null && auth.uid === '__OWNER_UID__'",
       "$id": {
         ".write": "auth != null && auth.uid === '__DEVICE_UID__' && !data.exists() && newData.exists()",
         ".validate": "newData.hasChildren(['ts', 'type'])",
-        "ts":   { ".validate": "newData.val() == now" },
-        "type": { ".validate": "newData.isString() && newData.val().matches(/^(btn1|btn2|btn3|vibration|reed_open|reed_close|boot)$/)" },
-        "$other": { ".validate": false }
+        "ts": {
+          ".validate": "newData.val() == now"
+        },
+        "type": {
+          ".validate": "newData.isString() && newData.val().matches(/^(btn1|btn2|btn3|vibration|reed_open|reed_close|boot)$/)"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid && auth.uid === '__OWNER_UID__'",
+        ".write": "auth != null && auth.uid === $uid && auth.uid === '__OWNER_UID__'",
+        "settings": {
+          ".validate": "newData.hasChildren(['birth', 'ratio', 'intervalDays', 'species', 'updatedAt'])",
+          "birth": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"
+          },
+          "ratio": {
+            ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1"
+          },
+          "intervalDays": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 30"
+          },
+          "species": {
+            ".validate": "newData.isString() && (newData.val() === 'crested' || newData.val() === 'leopard' || newData.val() === 'custom')"
+          },
+          "thresholds": {
+            "$k": {
+              ".validate": "newData.isNumber() && newData.val() >= -10 && newData.val() <= 100 && $k.matches(/^(tDL|tCL|tCH|tDH|hDL|hCL|hCH|hDH)$/)"
+            }
+          },
+          "updatedAt": {
+            ".validate": "newData.val() == now"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "entries": {
+          "$date": {
+            ".validate": "$date.matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/) && newData.hasChildren(['updatedAt'])",
+            "weight": {
+              ".validate": "newData.isNumber() && newData.val() >= 0.01 && newData.val() <= 200"
+            },
+            "fed": {
+              ".validate": "newData.isString() && (newData.val() === 'O' || newData.val() === 'X' || newData.val() === '예정')"
+            },
+            "memo": {
+              ".validate": "newData.isString() && newData.val().length <= 200"
+            },
+            "temp": {
+              ".validate": "newData.isNumber() && newData.val() >= -10 && newData.val() <= 60"
+            },
+            "hum": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+            },
+            "deleted": {
+              ".validate": "newData.isBoolean() && newData.val() === true"
+            },
+            "updatedAt": {
+              ".validate": "newData.val() == now"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }
