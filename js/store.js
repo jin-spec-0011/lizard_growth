@@ -110,3 +110,27 @@ export async function clearCloud() {
     /* ignore */
   }
 }
+
+// ---- 클라우드 동기화 메타(항목별 서버 시각, 아직 못 올린 변경 목록) ----
+const SYNC_KEY = 'sync';
+
+export async function loadSyncMeta() {
+  try {
+    const db = await openDb();
+    const v = await tx(db, 'readonly', (s) => s.get(SYNC_KEY));
+    db.close();
+    return v || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function saveSyncMeta(meta) {
+  try {
+    const db = await openDb();
+    await tx(db, 'readwrite', (s) => s.put(JSON.parse(JSON.stringify(meta)), SYNC_KEY));
+    db.close();
+  } catch (e) {
+    /* 저장 불가 환경: 메모리에서만 유지 */
+  }
+}

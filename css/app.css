@@ -29,6 +29,7 @@ button{cursor:pointer;border:0;background:none}
 .hdr{display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px}
 .hdr h1,.hdr h2{font-size:24px;letter-spacing:-.5px;line-height:1.2}
 .hdr small{display:block;color:var(--mute);font-size:12.5px}
+.hdr small.sync{color:var(--grn-ink);font-weight:700}.hdr small.sync.bad{color:var(--red)}
 .avatar{width:42px;height:42px;border-radius:50%;background:var(--yel2);display:grid;place-items:center;font-size:23px}
 
 /* week */
